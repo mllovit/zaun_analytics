@@ -533,102 +533,102 @@ def main():
         """, unsafe_allow_html=True)
 
     # Function to generate automated insights
-    def generate_automated_insights(data):
-        insights = ""
-        numerical_cols = data.select_dtypes(include=['float64', 'int64']).columns
-        if len(numerical_cols) > 0:
-            # Variable with highest mean
-            mean_values = data[numerical_cols].mean().sort_values(ascending=False)
-            highest_mean_col = mean_values.index[0]
-            highest_mean_value = mean_values.iloc[0]
-            insights += f"- The variable with the highest mean is **{highest_mean_col}** ({highest_mean_value:.2f}).\n"
+def generate_automated_insights(data):
+    insights = ""
+    numerical_cols = data.select_dtypes(include=['float64', 'int64']).columns
+    if len(numerical_cols) > 0:
+        # Variable with highest mean
+        mean_values = data[numerical_cols].mean().sort_values(ascending=False)
+        highest_mean_col = mean_values.index[0]
+        highest_mean_value = mean_values.iloc[0]
+        insights += f"- The variable with the highest mean is **{highest_mean_col}** ({highest_mean_value:.2f}).\n"
 
-            # Most correlated variables
-            corr_matrix = data[numerical_cols].corr().abs()
-            corr_matrix.values[np.tril_indices_from(corr_matrix)] = 0  # Set lower triangle and diagonal to zero
-            max_corr = corr_matrix.unstack().sort_values(ascending=False)
-            if not max_corr.empty:
-                most_corr_pair = max_corr.index[0]
-                most_corr_value = max_corr.iloc[0]
-                insights += f"- The most correlated variables are **{most_corr_pair[0]}** and **{most_corr_pair[1]}** with a correlation of {most_corr_value:.2f}.\n"
-        else:
-            insights = "No numerical columns available for analysis."
-        return insights
+        # Most correlated variables
+        corr_matrix = data[numerical_cols].corr().abs()
+        corr_matrix.values[np.tril_indices_from(corr_matrix)] = 0  # Set lower triangle and diagonal to zero
+        max_corr = corr_matrix.unstack().sort_values(ascending=False)
+        if not max_corr.empty:
+            most_corr_pair = max_corr.index[0]
+            most_corr_value = max_corr.iloc[0]
+            insights += f"- The most correlated variables are **{most_corr_pair[0]}** and **{most_corr_pair[1]}** with a correlation of {most_corr_value:.2f}.\n"
+    else:
+        insights = "No numerical columns available for analysis."
+    return insights
 
-    # Function to generate Quick Insights PDF
-    def generate_quick_insights_pdf(data, fig_corr, insights):
-        pdf_buffer = io.BytesIO()
-        p = canvas.Canvas(pdf_buffer, pagesize=(595, 842))
+# Function to generate Quick Insights PDF
+def generate_quick_insights_pdf(data, fig_corr, insights):
+    pdf_buffer = io.BytesIO()
+    p = canvas.Canvas(pdf_buffer, pagesize=(595, 842))
 
-        # Modern styling colors
-        header_color = (52/255, 152/255, 219/255)  # Blue (#3498db)
-        text_color = (44/255, 62/255, 80/255)      # Dark gray (#2c3e50)
-        accent_color = (46/255, 204/255, 113/255)  # Green (#2ecc71)
+    # Modern styling colors
+    header_color = (52/255, 152/255, 219/255)  # Blue (#3498db)
+    text_color = (44/255, 62/255, 80/255)      # Dark gray (#2c3e50)
+    accent_color = (46/255, 204/255, 113/255)  # Green (#2ecc71)
 
-        # Header with background
-        p.setFillColor(header_color)
-        p.rect(0, 770, 612, 72, fill=True)
+    # Header with background
+    p.setFillColor(header_color)
+    p.rect(0, 770, 612, 72, fill=True)
 
-        # White text for header
-        p.setFillColor('white')
-        p.setFont("Helvetica-Bold", 24)
-        p.drawString(50, 800, "Zaun Analytics Quick Insights")
-        p.setFont("Helvetica", 14)
-        p.drawString(50, 780, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    # White text for header
+    p.setFillColor('white')
+    p.setFont("Helvetica-Bold", 24)
+    p.drawString(50, 800, "Zaun Analytics Quick Insights")
+    p.setFont("Helvetica", 14)
+    p.drawString(50, 780, f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-        # Decorative line
-        p.setStrokeColor(accent_color)
-        p.setLineWidth(3)
-        p.line(50, 770, 550, 770)
+    # Decorative line
+    p.setStrokeColor(accent_color)
+    p.setLineWidth(3)
+    p.line(50, 770, 550, 770)
 
-        y_position = 750
+    y_position = 750
 
-        # Automated Insights
-        p.setFillColor(text_color)
-        p.setFont("Helvetica-Bold", 16)
-        p.drawString(50, y_position, "Automated Insights:")
-        y_position -= 20
+    # Automated Insights
+    p.setFillColor(text_color)
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(50, y_position, "Automated Insights:")
+    y_position -= 20
 
-        p.setFont("Helvetica", 10)
-        insights_lines = insights.split('\n')
-        for line in insights_lines:
-            wrapped_lines = wrap(line, width=115)
-            for wrapped_line in wrapped_lines:
-                if y_position < 50:
-                    p.showPage()
-                    y_position = 800
-                    p.setFont("Helvetica", 10)
-                p.drawString(50, y_position, wrapped_line)
-                y_position -= 15
+    p.setFont("Helvetica", 10)
+    insights_lines = insights.split('\n')
+    for line in insights_lines:
+        wrapped_lines = wrap(line, width=115)
+        for wrapped_line in wrapped_lines:
+            if y_position < 50:
+                p.showPage()
+                y_position = 800
+                p.setFont("Helvetica", 10)
+            p.drawString(50, y_position, wrapped_line)
+            y_position -= 15
 
-        # Correlation Matrix Image
-        y_position -= 20
-        p.setFont("Helvetica-Bold", 16)
-        p.drawString(50, y_position, "Correlation Matrix:")
-        y_position -= 10
+    # Correlation Matrix Image
+    y_position -= 20
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(50, y_position, "Correlation Matrix:")
+    y_position -= 10
 
-        # Save the correlation matrix figure to a buffer
-        corr_img_buffer = io.BytesIO()
-        fig_corr.savefig(corr_img_buffer, format="png", bbox_inches='tight')
-        corr_img_buffer.seek(0)
-        corr_img = Image.open(corr_img_buffer)
+    # Save the correlation matrix figure to a buffer
+    corr_img_buffer = io.BytesIO()
+    fig_corr.savefig(corr_img_buffer, format="png", bbox_inches='tight')
+    corr_img_buffer.seek(0)
+    corr_img = Image.open(corr_img_buffer)
 
-        # Add the image to the PDF
-        p.drawInlineImage(corr_img, 50, y_position - 300, width=500, height=300)
-        y_position -= 320
+    # Add the image to the PDF
+    p.drawInlineImage(corr_img, 50, y_position - 300, width=500, height=300)
+    y_position -= 320
 
-        # Modern footer
-        p.setFillColor(header_color)
-        p.rect(0, 0, 612, 50, fill=True)
-        p.setFillColor('white')
-        p.setFont("Helvetica", 10)
-        p.drawString(50, 20, "Zaun Analytics | Developed by Zaun Team")
-        p.drawString(400, 20, f"Report ID: ZA{datetime.now().strftime('%Y%m%d%H%M')}")
+    # Modern footer
+    p.setFillColor(header_color)
+    p.rect(0, 0, 612, 50, fill=True)
+    p.setFillColor('white')
+    p.setFont("Helvetica", 10)
+    p.drawString(50, 20, "Zaun Analytics | Developed by Zaun Team")
+    p.drawString(400, 20, f"Report ID: ZA{datetime.now().strftime('%Y%m%d%H%M')}")
 
-        # Save and prepare for download
-        p.save()
-        pdf_buffer.seek(0)
-        return pdf_buffer.getvalue()
+    # Save and prepare for download
+    p.save()
+    pdf_buffer.seek(0)
+    return pdf_buffer.getvalue()
 
 if __name__ == "__main__":
     main()
