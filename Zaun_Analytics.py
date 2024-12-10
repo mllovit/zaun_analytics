@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
+import google.generativeai as genai
 import matplotlib.pyplot as plt
 import seaborn as sns
+import os
 import base64  
 import uuid 
 import numpy as np
@@ -29,6 +31,13 @@ if 'chart_png' not in st.session_state:
     st.session_state['chart_png'] = None
 if 'uploaded_file' not in st.session_state:
     st.session_state['uploaded_file'] = None
+if 'cleaned_data' not in st.session_state:
+    st.session_state['cleaned_data'] = None  # To store cleaned dataset
+if 'clean_summary' not in st.session_state:
+    st.session_state['clean_summary'] = ""   # To store summary of cleaning steps
+
+GEMINI_API_KEY = "AIzaSyC7zHx-i-nASIERMCIEAxwohlkRZKcJ1G8"  
+genai.configure(api_key=GEMINI_API_KEY)
 
 def main():
     # Advanced Page Configuration
@@ -241,6 +250,103 @@ def main():
                         st.header("Visualization")
                         st.pyplot(st.session_state['fig'], use_container_width=True)
 
+                        if chart_type == "Column Chart":
+                            # Compute some stats: mean of y_axis by each category in x_axis
+                            means_by_group = data.groupby(x_axis)[y_axis].mean().sort_values(ascending=False)
+                            top_category = means_by_group.index[0]
+                            top_value = means_by_group.iloc[0]
+                            bottom_category = means_by_group.index[-1]
+                            bottom_value = means_by_group.iloc[-1]
+
+                            descriptive_text = f"""
+                            This column chart compares {y_axis} values across the categories in {x_axis}.
+                            The category '{top_category}' has the highest average {y_axis}: {top_value:.2f}.
+                            Meanwhile, '{bottom_category}' has the lowest average {y_axis}: {bottom_value:.2f}.
+                            The other categories fall between these values, indicating a range of performance.
+                            Overall, '{top_category}' stands out with the greatest {y_axis} among the categories.
+                            """
+
+                        elif chart_type == "Cumulative Line Chart":
+                            # Sort data by x_axis and compute cumulative sum
+                            data_copy = data.copy().sort_values(by=x_axis)
+                            data_copy['Cumulative'] = data_copy[y_axis].cumsum()
+                            start_value = data_copy['Cumulative'].iloc[0]
+                            end_value = data_copy['Cumulative'].iloc[-1]
+                            midpoint = len(data_copy) // 2
+                            mid_value = data_copy['Cumulative'].iloc[midpoint]
+
+                            descriptive_text = f"""
+                            This cumulative line chart shows how {y_axis} adds up as we move along {x_axis}.
+                            Starting from approximately {start_value:.2f}, the cumulative total gradually increases.
+                            By the midpoint of {x_axis}, the cumulative sum reaches about {mid_value:.2f}.
+                            Ultimately, at the end of the {x_axis} axis, the total cumulative value is {end_value:.2f}.
+                            The line visually represents the accumulation of {y_axis} over the sequence of {x_axis},
+                            highlighting both the growth trend and the final total sum.
+                            """
+
+                        elif chart_type == "Heatmap":
+                            # Create a pivot table and identify max and min intersections
+                            pivot_table = data.pivot_table(index=y_axis, columns=x_axis, aggfunc="size", fill_value=0)
+                            max_value = pivot_table.values.max()
+                            min_value = pivot_table.values.min()
+                            # Find which intersection(s) have max/min values
+                            max_positions = (pivot_table == max_value)
+                            min_positions = (pivot_table == min_value)
+                            max_locs = [(r, c) for r, c in zip(*max_positions.to_numpy().nonzero())]
+                            min_locs = [(r, c) for r, c in zip(*min_positions.to_numpy().nonzero())]
+
+                            # Just pick the first max and min location for description
+                            max_y, max_x = pivot_table.index[max_locs[0][0]], pivot_table.columns[max_locs[0][1]]
+                            min_y, min_x = pivot_table.index[min_locs[0][0]], pivot_table.columns[min_locs[0][1]]
+
+                            descriptive_text = f"""
+                            This heatmap shows intersections of categories from {x_axis} (horizontal) and {y_axis} (vertical).
+                            Darker colors indicate higher counts or intensities at that intersection.
+                            The highest value observed is {max_value} at the intersection ({max_x}, {max_y}).
+                            The lowest value is {min_value} at the intersection ({min_x}, {min_y}).
+                            Between these extremes, other cells show varying degrees of intensity.
+                            This allows us to quickly identify where combinations of {x_axis} and {y_axis} have strong or weak occurrences.
+                            """
+
+                        elif chart_type == "Stacked Bar Chart":
+                            # Group and create a stacked structure
+                            grouped_data = data.groupby([x_axis, y_axis]).size().unstack(fill_value=0)
+                            # Identify which segment is largest overall
+                            category_totals = grouped_data.sum()
+                            top_segment = category_totals.idxmax()
+                            top_segment_value = category_totals.max()
+
+                            # Identify which x_axis category has the largest total bar
+                            bar_totals = grouped_data.sum(axis=1)
+                            largest_bar_category = bar_totals.idxmax()
+                            largest_bar_value = bar_totals.max()
+
+                            descriptive_text = f"""
+                            This stacked bar chart displays how each {x_axis} category is composed of different {y_axis} segments.
+                            Across all bars, the '{top_segment}' segment appears most frequently, totaling {top_segment_value} units overall.
+                            The tallest bar belongs to the {x_axis} category '{largest_bar_category}', with a total of {largest_bar_value} units across all its segments.
+                            By comparing the heights and segment distributions, we can see which {y_axis} segments dominate certain {x_axis} categories and how the composition varies among them.
+                            """
+
+                        elif chart_type == "Waffle Chart":
+                            # Calculate proportions of y_axis by x_axis
+                            proportions = data.groupby(x_axis)[y_axis].sum()
+                            total = proportions.sum()
+                            sorted_props = proportions.sort_values(ascending=False)
+                            top_category = sorted_props.index[0]
+                            top_prop = (sorted_props.iloc[0] / total) * 100
+                            bottom_category = sorted_props.index[-1]
+                            bottom_prop = (sorted_props.iloc[-1] / total) * 100
+
+                            descriptive_text = f"""
+                            The waffle chart represents the distribution of total {y_axis} across categories of {x_axis}.
+                            Each small square stands for a portion of the total.
+                            '{top_category}' accounts for about {top_prop:.1f}% of the total {y_axis}, making it the largest contributor.
+                            In contrast, '{bottom_category}' contributes roughly {bottom_prop:.1f}%, indicating it has a relatively small share.
+                            Other categories fill the remaining space, reflecting their share of the total distribution.
+                            This visualization helps identify which categories hold the greatest and smallest portions of the overall {y_axis}.
+                            """
+
                         # Download Chart as PNG
                         st.download_button(
                             label="Download Chart as PNG",
@@ -261,85 +367,28 @@ def main():
                         )
                         
                         st.caption("Please press 'cmd/ctrl + Enter' or click outside the text area to ensure your remarks are captured before generating the PDF.")
-                        
-                        # Prepare the prompt for the AI service
+
+                        # Prompt for AI remarks
                         prompt = f"""
-                                    I have created a {chart_type} using the following data:
+                        I have created a {chart_type} using the following data:
 
-                                    - X-Axis ({x_axis}): {data[x_axis].unique().tolist()[:10]}...
-                                    - Y-Axis ({y_axis}): {data[y_axis].unique().tolist()[:10]}...
+                        - X-Axis ({x_axis}): {data[x_axis].unique().tolist()[:10]}...
+                        - Y-Axis ({y_axis}): showing values as above
 
-                                    Please provide a brief analysis and remarks about this visualization.
-                                    """
+                        {descriptive_text}
 
-                        # Display the prompt
-                        st.write("### Generate Remarks with Gemini or ChatGPT")
-                        st.info("You can use the prompt below to generate remarks using Gemini or ChatGPT. Copy the prompt, open the AI service in a new tab, and paste it there to get your remarks.")
+                        Please provide a brief analysis and remarks about this visualization, taking into account the differences noted.
+                        """
 
-                        # Display the prompt with copy-to-clipboard functionality
-                        st.code(prompt, language='')
+                        if st.button("Generate Remarks with Gemini", key="generate_remarks_button"):
+                            with st.spinner("Generating AI remarks..."):
+                                remarks_from_ai = generate_remarks_with_gemini(prompt)
+                                st.session_state['generated_remarks'] = remarks_from_ai
 
-                        st.write("Click the **Copy** button in the top-right corner of the code block to copy the prompt.")
-
-                        # Display the buttons in a row
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.markdown("""
-                            <style>
-                            .chatgpt-button {
-                                background-color: #f4f6f7;
-                                color: white;
-                                padding: 10px 24px;
-                                font-size: 16px;
-                                border: none;
-                                border-radius: 5px;
-                                cursor: pointer;
-                                text-align: center;
-                                text-decoration: none;
-                                display: inline-block;
-                                box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
-                                transition: box-shadow 0.3s ease;
-                            }
-                            .chatgpt-button:hover {
-                                background-color: #f4f6f7;
-                                box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2);
-                            }
-                            </style>
-                            <a href="https://chat.openai.com/" target="_blank" class="chatgpt-button">Open ChatGPT</a>
-                            """, unsafe_allow_html=True)
-
-                        with col2:
-                            st.markdown("""
-                            <style>
-                            .gemini-button {
-                                background-color: #f4f6f7;
-                                color: white;
-                                padding: 10px 24px;
-                                font-size: 16px;
-                                border: none;
-                                border-radius: 5px;
-                                cursor: pointer;
-                                text-align: center;
-                                text-decoration: none;
-                                display: inline-block;
-                                box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
-                                transition: box-shadow 0.3s ease;
-                            }
-                            .gemini-button:hover {
-                                background-color: #f4f6f7;
-                                box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.2);
-                            }
-                            </style>
-                            <a href="https://gemini.google.com/" target="_blank" class="gemini-button">Open Google Gemini</a>
-                            """, unsafe_allow_html=True)
-
-                        # Instructions for the user
-                        st.write("""
-                            1. Click the **Copy** button above the prompt to copy it.
-                            2. Click **Open ChatGPT** or **Open Google Gemini** to open the AI service in a new tab.
-                            3. Paste the prompt into the AI chat and get your generated remarks.
-                            4. Copy the generated remarks and paste them into the **'Remarks for the report'** text area.
-                            """)
+                        # If AI remarks are generated, show them read-only for user to copy
+                        if 'generated_remarks' in st.session_state:
+                            st.markdown("**Gemini-Generated Remarks (Copy and paste into the remarks box above if desired):**")
+                            st.text_area("AI-Generated Remarks", value=st.session_state['generated_remarks'], height=300, key='ai_remarks', disabled=True)
                         
                         # Button to generate PDF
                         if st.button("Generate PDF Report"):
@@ -443,7 +492,6 @@ def main():
                     st.header("Raw Data Explorer")
                     st.dataframe(data, use_container_width=True)
                     
-                    # Basic data statistics
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         st.metric("Total Rows", len(data))
@@ -451,6 +499,26 @@ def main():
                         st.metric("Total Columns", len(data.columns))
                     with col3:
                         st.metric("Memory Usage", f"{data.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
+
+                    st.subheader("Clean your Data Locally")
+                    if st.button("Clean Data Locally"):
+                        cleaned_df, summary = clean_data_locally(data)
+                        data = cleaned_df  # Update the data variable with cleaned data
+                        st.session_state['cleaned_data'] = cleaned_df
+                        st.session_state['clean_summary'] = summary
+                        st.success("Data cleaned successfully!")
+                        st.write("**Summary of changes:**")
+                        st.write(summary)
+                        st.dataframe(cleaned_df)
+
+                        # Provide a download button for the cleaned data
+                        cleaned_csv = cleaned_df.to_csv(index=False)
+                        st.download_button(
+                            label="Download Cleaned Data",
+                            data=cleaned_csv,
+                            file_name="cleaned_data.csv",
+                            mime="text/csv"
+                        )
 
                 with tab3:
                     st.header("Quick Insights")
@@ -528,10 +596,53 @@ def main():
         st.markdown("---")
         st.markdown("""
         <div style='text-align: center; color: #7f8c8d;'>
-        <strong>Zaun Analytics</strong> | Developed by Zaun Team | Powered by Streamlit
+        <strong>Zaun Analytics</strong> | Developed by Zaun Team | Powered by Streamlit & Google Gemini
         </div>
         """, unsafe_allow_html=True)
 
+def generate_remarks_with_gemini(prompt):
+    generation_config = {
+        "temperature": 0.7,
+        "top_p": 0.9,
+        "top_k": 40,
+        "max_output_tokens": 1024,
+        "response_mime_type": "text/plain",
+    }
+
+    model = genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        generation_config=generation_config,
+    )
+
+    chat_session = model.start_chat(history=[])
+    response = chat_session.send_message(prompt)
+    remarks_from_ai = response.text.strip()
+    return remarks_from_ai
+
+def clean_data_locally(data: pd.DataFrame):
+    """
+    A simple local data cleaning function:
+    - Drops duplicates
+    - Fills missing numeric values with mean
+    - Fills missing categorical values with mode
+    """
+    data_cleaned = data.drop_duplicates()
+
+    # Fill missing numeric values with mean
+    numeric_cols = data_cleaned.select_dtypes(include=[np.number]).columns
+    for col in numeric_cols:
+        if data_cleaned[col].isnull().any():
+            data_cleaned[col].fillna(data_cleaned[col].mean(), inplace=True)
+
+    # Fill missing categorical values with mode
+    categorical_cols = data_cleaned.select_dtypes(include=['object', 'category']).columns
+    for col in categorical_cols:
+        if data_cleaned[col].isnull().any():
+            data_cleaned[col].fillna(data_cleaned[col].mode()[0], inplace=True)
+
+    summary = "Dropped duplicates, filled missing numeric values with mean, and categorical values with mode."
+    return data_cleaned, summary
+    
     # Function to generate automated insights
 def generate_automated_insights(data):
     insights = ""
