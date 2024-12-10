@@ -102,7 +102,7 @@ def main():
             <p style='color: #7f8c8d; font-size: 18px;'>
                 Unlock insights from your data with powerful visualizations and intuitive analysis tools.
             </p>
-            <img src='https://img.icons8.com/external-flaticons-lineal-color-flat-icons/128/external-data-analytics-marketing-technology-flaticons-lineal-color-flat-icons.png' 
+            <img src='https://i.ibb.co/0nmh3F1/Zaun-Team-Logo.png" alt="Zaun-Team-Logo'
                 style='max-width: 200px; margin-top: 20px;'>
             <br><br>
         </div>
@@ -128,7 +128,7 @@ def main():
 
         # Sidebar Layout
         with st.sidebar:
-            st.image("https://img.icons8.com/external-flat-vol-2-vectorslab/68/external-Data-Visualization-web-marketing-flat-vol-2-vectorslab.png", width=68)
+            st.image("https://i.ibb.co/0nmh3F1/Zaun-Team-Logo.png", width=68)
             
             # File Uploader with improved UI
             st.header("📤 Data Upload")
