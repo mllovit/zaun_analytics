@@ -500,8 +500,8 @@ def main():
                     with col3:
                         st.metric("Memory Usage", f"{data.memory_usage(deep=True).sum() / 1024**2:.2f} MB")
 
-                    st.subheader("Clean your Data Locally")
-                    if st.button("Clean Data Locally"):
+                    st.subheader("Clean your Data")
+                    if st.button("Clean Data"):
                         cleaned_df, summary = clean_data_locally(data)
                         data = cleaned_df  # Update the data variable with cleaned data
                         st.session_state['cleaned_data'] = cleaned_df
