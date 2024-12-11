@@ -160,6 +160,19 @@ def main():
             try:
                 data = pd.read_csv(st.session_state['uploaded_file'])
 
+                # Missing Values Analysis
+                missing_values = data.isnull().sum()
+                missing_percent = (missing_values / len(data)) * 100
+                mv_df = pd.DataFrame({
+                    'Missing Values': missing_values,
+                    'Percentage (%)': missing_percent
+                })
+
+                # Check if dataset is cleaned or uncleaned based on missing values
+                if missing_values.sum() == 0:
+                    st.success("Dataset uploaded is cleaned")
+                else:
+                    st.error("Dataset uploaded is uncleaned. Use Data Cleaning on the Data View tab.")
                 # Tabs for different views
                 tab1, tab2, tab3 = st.tabs(["📊 Visualize", "📋 Data View", "🔍 Insights"])
 
@@ -358,16 +371,6 @@ def main():
                         # Generate Report Section
                         st.subheader("Generate Report")
 
-                        # Capture remarks using session state
-                        remarks = st.text_area(
-                            "Remarks for the report",
-                            value=st.session_state['remarks'],
-                            height=100,
-                            key='remarks',
-                        )
-                        
-                        st.caption("Please press 'cmd/ctrl + Enter' or click outside the text area to ensure your remarks are captured before generating the PDF.")
-
                         # Prompt for AI remarks
                         prompt = f"""
                         I have created a {chart_type} using the following data:
@@ -389,6 +392,21 @@ def main():
                         if 'generated_remarks' in st.session_state:
                             st.markdown("**Gemini-Generated Remarks (Copy and paste into the remarks box above if desired):**")
                             st.text_area("AI-Generated Remarks", value=st.session_state['generated_remarks'], height=300, key='ai_remarks', disabled=True)
+                        
+                            # New button to directly insert AI-generated remarks into the Remarks text box
+                            if st.button("Use AI-Generated Remarks"):
+                                st.session_state['remarks'] = st.session_state['generated_remarks']
+                                st.success("AI-Generated Remarks have been copied to the Remarks text box!")
+                            
+                        # Capture remarks using session state
+                        remarks = st.text_area(
+                            "Remarks for the report",
+                            value=st.session_state['remarks'],
+                            height=300,
+                            key='remarks',
+                        )
+                        
+                        st.caption("Please press 'cmd/ctrl + Enter' or click outside the text area to ensure your remarks are captured before generating the PDF.")
                         
                         # Button to generate PDF
                         if st.button("Generate PDF Report"):
